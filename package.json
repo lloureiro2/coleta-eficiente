@@ -48,6 +48,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "servidor:web": "expo start --web --port 8081",
     "tunel": "cloudflared tunnel --config cloudflared.yml run coleta-eficiente",
     "lint": "expo lint"
   },

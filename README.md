@@ -8,6 +8,8 @@ Aplicativo de coleta seletiva porta a porta, vendido para **prefeituras** e **co
 
 Feito com [Expo](https://expo.dev) SDK 57 (React Native) e [Supabase](https://supabase.com).
 
+**Produção (servidor LLA):** https://coleta.servidorlla.com.br — ver [docs/SERVIDOR-LLA.md](docs/SERVIDOR-LLA.md).
+
 ## Como rodar
 
 ### 1. Configurar o Supabase (uma vez só)
