@@ -1,0 +1,140 @@
+Contas de teste — Coleta Eficiente
+Senha de todas as contas fake: Teste123!
+
+--------------------------------------------------
+COMO FUNCIONA
+--------------------------------------------------
+- Admin cria a prefeitura e a cooperativa (nome da instituição + e-mail + senha).
+- A conta institucional é só um e-mail de acesso. Não tem nome de pessoa.
+- A prefeitura atrela cidadãos, cidadãs e cooperativas na aba Equipe.
+- Pessoa vinculada pode ser promovida a cidadão gestor / cidadã gestora e passa a ver o processo das solicitações.
+- Cooperativa tem a mesma tela da prefeitura: vê o processo inteiro. Se a cidade não tiver prefeitura, a solicitação chega nela. Se as duas existirem, a prefeitura recebe e pode encaminhar.
+
+--------------------------------------------------
+ADMIN
+--------------------------------------------------
+Nome: Administrador
+E-mail: admin@coletaeficiente.com.br
+Senha: a mesma de antes (não foi alterada)
+Papel: Admin
+Para testar:
+- Cadastrar prefeitura ou cooperativa (nome + cidade + UF + e-mail + senha de acesso)
+- Consultar usuários (cidadãos e cidadãs, cooperativas e prefeituras)
+- Admin NÃO promove ninguém a gestor
+
+--------------------------------------------------
+PREFEITURA DE VITORIA
+--------------------------------------------------
+Nome: Prefeitura de Vitoria
+E-mail: prefeitura.vitoria@teste.com
+Senha: Teste123!
+Papel: Conta de acesso da prefeitura (gestor institucional)
+Cidade: Vitoria / ES
+Para testar:
+- Aprovar ou recusar solicitações pendentes
+- Encaminhar a coleta para cooperativa ou cidadão/cidadã gestor
+- Atrelar pessoa na Equipe (ex.: João Pereira)
+- Promover pessoa vinculada a gestor
+- Contratar cooperativa (ex.: coop.livre@teste.com)
+
+Já feito nesta conta:
+- Recicla Vitoria já está contratada
+- 2 solicitações pendentes para aprovar (Maria e João)
+- 1 aprovada enviada à Recicla (Praia do Canto)
+- 1 encaminhada à Recicla (Centro)
+
+--------------------------------------------------
+COOPERATIVA RECICLA VITORIA
+--------------------------------------------------
+Nome: Cooperativa Recicla Vitoria
+E-mail: coop.recicla@teste.com
+Senha: Teste123!
+Papel: Conta de acesso da cooperativa (já contratada / gestora)
+Cidade: Vitoria / ES
+Para testar:
+- Ver o processo das solicitações encaminhadas a ela
+- Aceitar ou recusar o encaminhamento
+- Despachar caminhão, marcar coletada
+- Registrar coleta: conferir os materiais do pedido, foto obrigatória, peso e unidades
+
+Já feito nesta conta:
+- Contratada pela Prefeitura de Vitoria
+- Tem 1 solicitação aprovada (Maria, Praia do Canto) pronta para encaminhar
+- Tem 1 solicitação encaminhada (Maria, Centro) para avançar a operação
+
+--------------------------------------------------
+COOPERATIVA SERRA VERDE
+--------------------------------------------------
+Nome: Cooperativa Serra Verde
+E-mail: coop.livre@teste.com
+Senha: Teste123!
+Papel: Cooperativa ainda sem contrato
+Cidade: Serra / ES
+Para testar:
+- Entrar na mesma tela da prefeitura
+- Ser encontrada e contratada pela prefeitura na aba Equipe
+  (buscar o e-mail coop.livre@teste.com)
+
+--------------------------------------------------
+MARIA OLIVEIRA
+--------------------------------------------------
+Nome: Maria Oliveira
+E-mail: maria.oliveira@teste.com
+Senha: Teste123!
+Papel: Cidadã
+Endereço: Rua das Acacias, 120 — Jardim da Penha, Vitoria/ES
+Para testar:
+- Pedir nova coleta (CEP / mapa)
+- Ver os próprios pedidos na linha do tempo (hora, quem, onde)
+- Receber push a cada status (development build; no Expo Go Android o push remoto não chega)
+
+Já feito nesta conta:
+- 1 pendente em Jardim da Penha (plástico)
+- 1 aprovada em Praia do Canto (papelão e plástico) — Recicla
+- 1 encaminhada no Centro (vidro) — Recicla
+
+--------------------------------------------------
+JOAO PEREIRA
+--------------------------------------------------
+Nome: Joao Pereira
+E-mail: joao.pereira@teste.com
+Senha: Teste123!
+Papel: Cidadão sem vínculo
+Endereço: Av. Central, 45 — Centro, Vitoria/ES
+Para testar:
+- Pedir coleta
+- Ser vinculado pela prefeitura na Equipe
+- Ser promovido a cidadão gestor depois do vínculo (a tela muda para o processo das solicitações)
+
+Já feito nesta conta:
+- 1 pendente no Centro (eletrônicos)
+- Sem contratante (prefeitura pode vincular)
+
+--------------------------------------------------
+SOLICITACOES JA CRIADAS EM VITORIA
+--------------------------------------------------
+1. Pendente — Maria Oliveira — Jardim da Penha — plástico
+   Quem testa: prefeitura (aprovar + encaminhar, ou recusar)
+
+2. Pendente — Joao Pereira — Centro — eletrônicos
+   Quem testa: prefeitura (aprovar ou recusar)
+
+3. Aprovada — Maria Oliveira — Praia do Canto — papelão e plástico
+   Destino: Cooperativa Recicla Vitoria
+   Quem testa: prefeitura (encaminhar no detalhe da solicitação)
+
+4. Encaminhada — Maria Oliveira — Centro — vidro
+   Destino: Cooperativa Recicla Vitoria
+   Quem testa: Recicla (despachar caminhão, marcar coletada, registrar com foto e kg)
+
+--------------------------------------------------
+ROTEIRO RAPIDO DE TESTE
+--------------------------------------------------
+1. Admin: criar outra prefeitura ou cooperativa (nome da instituição, sem nome de pessoa).
+2. Prefeitura: aprovar a pendente da Maria e a do João.
+3. Prefeitura / Equipe: buscar joao.pereira@teste.com e vincular; opcional promover a cidadão gestor.
+4. Prefeitura / Equipe: buscar coop.livre@teste.com e contratar.
+5. Recicla: no detalhe, aceitar o encaminhamento da Praia do Canto.
+6. Recicla: na encaminhada do Centro, despachar e registrar com foto + kg (materiais já vêm do pedido).
+7. Maria: abrir Meus pedidos, ver a linha do tempo e pedir uma coleta nova.
+8. Pessoa nova: criar conta no app (cidadão ou cidadã, CEP, número e telefone com DDD) e ser atrelada pela prefeitura ou cooperativa.

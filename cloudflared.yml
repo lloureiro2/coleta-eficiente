@@ -1,0 +1,9 @@
+# Configuração do túnel Cloudflare do Coleta Eficiente.
+# Uso: npm run tunel  (com o servidor local rodando: npm run web)
+tunnel: 85c17b10-2b63-43c1-b5a7-dedf3fd04758
+credentials-file: C:\Users\Leonardo\.cloudflared\85c17b10-2b63-43c1-b5a7-dedf3fd04758.json
+
+ingress:
+  - hostname: coleta.servidorlla.com.br
+    service: http://localhost:8081
+  - service: http_status:404
