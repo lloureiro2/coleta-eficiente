@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 
 import { supabase } from './supabase';
 import type { Perfil } from './types';
@@ -50,17 +51,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [carregando, setCarregando] = useState(true);
 
-  const buscarPerfil = useCallback(async (userId: string) => {
+  const buscarPerfil = useCallback(async (userId: string, obrigatorio = false) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*, municipios(*)')
       .eq('id', userId)
       .maybeSingle();
     if (error || !data) {
-      setPerfil(null);
+      if (obrigatorio) setPerfil(null);
       return false;
     }
-    setPerfil(data as Perfil);
+    // Mantém o mesmo objeto quando nada mudou: a releitura periódica não pode
+    // reiniciar efeitos das telas que dependem do perfil.
+    setPerfil((atual) => {
+      const novo = data as Perfil;
+      return atual && JSON.stringify(atual) === JSON.stringify(novo) ? atual : novo;
+    });
     return true;
   }, []);
 
@@ -79,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setPerfil(null);
           return;
         }
-        const ok = await comTimeout(buscarPerfil(userData.user.id), 8000);
+        const ok = await comTimeout(buscarPerfil(userData.user.id, true), 8000);
         if (!ok) {
           await encerrarSessaoInvalida();
           setSessao(null);
@@ -135,6 +141,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       assinatura.subscription.unsubscribe();
     };
   }, [aplicarSessao]);
+
+  useEffect(() => {
+    const userId = sessao?.user.id;
+    if (!userId) return;
+
+    const atualizar = () => {
+      void buscarPerfil(userId);
+    };
+
+    const canal = supabase
+      .channel(`perfil-atual-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        },
+        atualizar
+      )
+      .subscribe();
+
+    const app = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') atualizar();
+    });
+
+    const aoFicarVisivel = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        atualizar();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', aoFicarVisivel);
+    }
+
+    const intervalo = setInterval(atualizar, 8000);
+
+    return () => {
+      void supabase.removeChannel(canal);
+      app.remove();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', aoFicarVisivel);
+      }
+      clearInterval(intervalo);
+    };
+  }, [sessao?.user.id, buscarPerfil]);
 
   const recarregarPerfil = useCallback(async () => {
     if (sessao) await buscarPerfil(sessao.user.id);

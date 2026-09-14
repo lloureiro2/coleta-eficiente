@@ -60,6 +60,8 @@ export default function Login() {
           autoCapitalize="none"
           keyboardType="email-address"
           placeholder="voce@exemplo.com"
+          returnKeyType="next"
+          onSubmitEditing={entrar}
         />
         <Campo
           rotulo="Senha"
@@ -67,6 +69,8 @@ export default function Login() {
           onChangeText={setSenha}
           secureTextEntry
           placeholder="Sua senha"
+          returnKeyType="go"
+          onSubmitEditing={entrar}
         />
         <Botao titulo="Entrar" aoTocar={entrar} carregando={enviando} />
       </Cartao>

@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { Botao, Campo, Carregando, Cartao, MensagemErro, Selo, Tela, Titulo, Vazio } from '@/components/ui';
 import { Cores, Espaco } from '@/constants/theme';
@@ -23,6 +23,7 @@ export default function EquipeGestor() {
   const [resultados, setResultados] = useState<Perfil[] | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [buscou, setBuscou] = useState(false);
+  const [filtroEquipe, setFiltroEquipe] = useState('');
 
   const carregar = useCallback(async () => {
     if (!perfil?.municipio_id) {
@@ -51,12 +52,20 @@ export default function EquipeGestor() {
     [equipe, perfil?.municipio_id]
   );
 
-  async function buscar() {
+  const minhaEquipeFiltrada = useMemo(() => {
+    const termo = filtroEquipe.trim().toLowerCase();
+    if (!termo) return minhaEquipe;
+    return minhaEquipe.filter(
+      (p) =>
+        (p.nome ?? '').toLowerCase().includes(termo) ||
+        (p.email ?? '').toLowerCase().includes(termo)
+    );
+  }, [minhaEquipe, filtroEquipe]);
+
+  const termosCurtos = buscaEmail.trim().length < 3 && buscaCidade.trim().length < 3;
+
+  const buscar = useCallback(async () => {
     setErro(null);
-    if (buscaEmail.trim().length < 3 && buscaCidade.trim().length < 3) {
-      setErro('Informe pelo menos 3 letras do e-mail ou da cidade para buscar.');
-      return;
-    }
     setBuscando(true);
     setBuscou(true);
     const { data, error } = await supabase.rpc('buscar_pessoa_para_equipe', {
@@ -78,38 +87,85 @@ export default function EquipeGestor() {
       setMunicipios([]);
     }
     setResultados(encontrados);
+  }, [buscaEmail, buscaCidade]);
+
+  // Busca enquanto digita; o botão continua funcionando para quem prefere tocar.
+  useEffect(() => {
+    if (termosCurtos) return;
+    const timer = setTimeout(() => {
+      void buscar();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [termosCurtos, buscar]);
+
+  function buscarPeloBotao() {
+    if (termosCurtos) {
+      setErro('Informe pelo menos 3 letras do e-mail ou da cidade para buscar.');
+      return;
+    }
+    Keyboard.dismiss();
+    void buscar();
   }
 
   async function vincularPessoa(pessoa: Perfil) {
     if (!perfil?.municipio_id) return;
     setErro(null);
     setAgindo(pessoa.id);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ municipio_id: perfil.municipio_id })
-      .eq('id', pessoa.id);
+    const { data, error } = await supabase.rpc('vincular_pessoa_equipe', {
+      p_pessoa_id: pessoa.id,
+    });
     setAgindo(null);
     if (error) {
       setErro(`Não foi possível vincular: ${error.message}`);
       return;
     }
-    setResultados((atual) =>
-      (atual ?? []).map((p) => (p.id === pessoa.id ? { ...p, municipio_id: perfil.municipio_id } : p))
-    );
+    const atualizada = data as Perfil | null;
+    if (!atualizada) {
+      setErro('Não foi possível vincular: tente buscar a pessoa novamente.');
+      return;
+    }
+    setResultados((atual) => (atual ?? []).map((p) => (p.id === pessoa.id ? atualizada : p)));
+    await carregar();
+  }
+
+  async function desvincularPessoa(pessoa: Perfil) {
+    setErro(null);
+    setAgindo(pessoa.id);
+    const { data, error } = await supabase.rpc('desvincular_pessoa_equipe', {
+      p_pessoa_id: pessoa.id,
+    });
+    setAgindo(null);
+    if (error) {
+      setErro(`Não foi possível desvincular: ${error.message}`);
+      return;
+    }
+    const atualizada = data as Perfil | null;
+    if (atualizada) {
+      setResultados((atual) => (atual ?? []).map((p) => (p.id === pessoa.id ? atualizada : p)));
+    }
     await carregar();
   }
 
   async function mudarPapel(pessoa: Perfil, novoPapel: 'cidadao' | 'gestor') {
     setErro(null);
     setAgindo(pessoa.id);
-    const { error } = await supabase.from('profiles').update({ papel: novoPapel }).eq('id', pessoa.id);
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ papel: novoPapel })
+      .eq('id', pessoa.id)
+      .select('*')
+      .maybeSingle();
     setAgindo(null);
     if (error) {
       setErro(`Não foi possível alterar o cargo: ${error.message}`);
       return;
     }
+    if (!data) {
+      setErro('Não foi possível alterar o cargo: vincule a pessoa à sua equipe antes de promover.');
+      return;
+    }
     setResultados((atual) =>
-      (atual ?? []).map((p) => (p.id === pessoa.id ? { ...p, papel: novoPapel } : p))
+      (atual ?? []).map((p) => (p.id === pessoa.id ? (data as Perfil) : p))
     );
     await carregar();
   }
@@ -156,23 +212,33 @@ export default function EquipeGestor() {
             style={{ marginTop: Espaco.m }}
           />
         )}
-        {daMinhaInstituicao &&
-          (p.papel === 'cidadao' ? (
+        {daMinhaInstituicao && (
+          <>
+            {p.papel === 'cidadao' ? (
+              <Botao
+                titulo={`Promover a ${rotuloGestorPessoa(p.genero).toLowerCase()}`}
+                carregando={agindo === p.id}
+                aoTocar={() => mudarPapel(p, 'gestor')}
+                style={{ marginTop: Espaco.m }}
+              />
+            ) : (
+              <Botao
+                titulo={rotuloRebaixarCidadao(p.genero)}
+                variante="secundario"
+                carregando={agindo === p.id}
+                aoTocar={() => mudarPapel(p, 'cidadao')}
+                style={{ marginTop: Espaco.m }}
+              />
+            )}
             <Botao
-              titulo={`Promover a ${rotuloGestorPessoa(p.genero).toLowerCase()}`}
+              titulo={`Desvincular da ${rotuloInstituicao}`}
+              variante="perigo"
               carregando={agindo === p.id}
-              aoTocar={() => mudarPapel(p, 'gestor')}
-              style={{ marginTop: Espaco.m }}
+              aoTocar={() => desvincularPessoa(p)}
+              style={{ marginTop: Espaco.s }}
             />
-          ) : (
-            <Botao
-              titulo={rotuloRebaixarCidadao(p.genero)}
-              variante="secundario"
-              carregando={agindo === p.id}
-              aoTocar={() => mudarPapel(p, 'cidadao')}
-              style={{ marginTop: Espaco.m }}
-            />
-          ))}
+          </>
+        )}
       </Cartao>
     );
   }
@@ -193,7 +259,7 @@ export default function EquipeGestor() {
 
       <MensagemErro texto={erro} />
 
-      <Text style={estilos.secao}>Buscar cidadão ou cidadã</Text>
+      <Text style={estilos.secao}>Buscar funcionário</Text>
       <Cartao>
         <Campo
           rotulo="E-mail"
@@ -202,12 +268,22 @@ export default function EquipeGestor() {
           autoCapitalize="none"
           keyboardType="email-address"
           placeholder="parte do e-mail"
+          returnKeyType="search"
+          onSubmitEditing={buscarPeloBotao}
         />
-        <Campo rotulo="Cidade" value={buscaCidade} onChangeText={setBuscaCidade} placeholder="Vitória" />
-        <Botao titulo="Buscar" aoTocar={buscar} carregando={buscando} />
+        <Campo
+          rotulo="Cidade"
+          value={buscaCidade}
+          onChangeText={setBuscaCidade}
+          placeholder="Vitória"
+          returnKeyType="search"
+          onSubmitEditing={buscarPeloBotao}
+        />
+        <Botao titulo="Buscar" aoTocar={buscarPeloBotao} carregando={buscando} />
       </Cartao>
 
-      {buscou &&
+      {!termosCurtos &&
+        buscou &&
         (resultados && resultados.length > 0 ? (
           resultados.map((p) => cartaoPessoa(p, 'busca'))
         ) : (
@@ -215,10 +291,32 @@ export default function EquipeGestor() {
         ))}
 
       <Text style={estilos.secao}>Minha equipe</Text>
+      <Cartao>
+        <Campo
+          rotulo="Buscar na minha equipe"
+          value={filtroEquipe}
+          onChangeText={setFiltroEquipe}
+          autoCapitalize="none"
+          placeholder="Nome ou e-mail"
+          returnKeyType="search"
+          onSubmitEditing={() => Keyboard.dismiss()}
+        />
+        <Botao
+          titulo={filtroEquipe.trim() ? 'Limpar busca' : 'Buscar'}
+          variante="secundario"
+          aoTocar={() => {
+            Keyboard.dismiss();
+            if (filtroEquipe.trim()) setFiltroEquipe('');
+          }}
+        />
+      </Cartao>
+
       {minhaEquipe.length === 0 ? (
         <Vazio mensagem="Nenhuma pessoa vinculada ainda." />
+      ) : minhaEquipeFiltrada.length === 0 ? (
+        <Vazio mensagem="Ninguém na sua equipe corresponde a essa busca." />
       ) : (
-        minhaEquipe.map((p) => cartaoPessoa(p, 'equipe'))
+        minhaEquipeFiltrada.map((p) => cartaoPessoa(p, 'equipe'))
       )}
     </Tela>
   );

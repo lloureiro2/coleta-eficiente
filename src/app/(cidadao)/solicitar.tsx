@@ -76,6 +76,38 @@ export default function SolicitarColeta() {
     }, [])
   );
 
+  // "S/N" é número válido para o cadastro, mas atrapalha a busca do ponto no mapa.
+  const semNumeroNaRua = /^s\s*\/?\s*n\.?$/i.test(numero.trim());
+  const numeroParaMapa = semNumeroNaRua ? '' : numero.trim();
+
+  // Valores primitivos: a releitura periódica do perfil não pode reiniciar o formulário.
+  const cepPerfil = perfil?.cep ?? '';
+  const enderecoPerfil = perfil?.endereco ?? '';
+  const numeroPerfil = perfil?.numero ?? '';
+  const bairroPerfil = perfil?.bairro ?? '';
+  const cidadePerfil = perfil?.cidade ?? '';
+  const ufPerfil = perfil?.uf ?? '';
+
+  const reiniciarFormulario = useCallback(() => {
+    setSelecionados([]);
+    setQuantidade('');
+    setObservacao('');
+    setFoto(null);
+    setCoordenadas(null);
+    setPontoAjustado(false);
+    setDestinoEscolhidoId(null);
+    setErro(null);
+    setCep(cepPerfil);
+    setEndereco(enderecoPerfil);
+    setNumero(numeroPerfil);
+    setBairro(bairroPerfil);
+    setCidade(cidadePerfil);
+    setUf(ufPerfil);
+  }, [cepPerfil, enderecoPerfil, numeroPerfil, bairroPerfil, cidadePerfil, ufPerfil]);
+
+  // A limpeza roda ao sair da tela: nada do pedido anterior fica preenchido.
+  useFocusEffect(useCallback(() => reiniciarFormulario, [reiniciarFormulario]));
+
   const destinosDaCidade = useMemo(
     () => contratantesDaCidade(municipios, { cidade, uf }),
     [municipios, cidade, uf]
@@ -219,7 +251,7 @@ export default function SolicitarColeta() {
       geocodificarEndereco({
         cep,
         logradouro: endereco,
-        numero,
+        numero: numeroParaMapa,
         cidade,
         uf,
       })
@@ -237,7 +269,7 @@ export default function SolicitarColeta() {
       ativo = false;
       clearTimeout(timer);
     };
-  }, [cep, endereco, numero, cidade, uf, pontoAjustado]);
+  }, [cep, endereco, numeroParaMapa, cidade, uf, pontoAjustado]);
 
   function removerLocalizacao() {
     setCoordenadas(null);
@@ -249,12 +281,7 @@ export default function SolicitarColeta() {
     setPontoAjustado(true);
   }, []);
 
-  async function escolherFoto() {
-    const resultado = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.6,
-      base64: true,
-    });
+  function guardarFoto(resultado: ImagePicker.ImagePickerResult) {
     const arquivo = resultado.assets?.[0];
     if (!resultado.canceled && arquivo?.base64) {
       setFoto({
@@ -263,6 +290,32 @@ export default function SolicitarColeta() {
         mime: arquivo.mimeType ?? 'image/jpeg',
       });
     }
+  }
+
+  async function tirarFoto() {
+    setErro(null);
+    const permissao = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissao.granted) {
+      setErro('Permita o acesso à câmera para tirar a foto dos materiais.');
+      return;
+    }
+    guardarFoto(
+      await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.6,
+        base64: true,
+      })
+    );
+  }
+
+  async function escolherFoto() {
+    guardarFoto(
+      await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.6,
+        base64: true,
+      })
+    );
   }
 
   async function enviar() {
@@ -288,9 +341,17 @@ export default function SolicitarColeta() {
       setErro('Escolha pelo menos um material.');
       return;
     }
+    if (!numero.trim()) {
+      setErro('Informe o número do local. Se o endereço não tiver número, escreva S/N.');
+      return;
+    }
     const enderecoCompleto = [endereco.trim(), numero.trim()].filter(Boolean).join(', ');
     if (!coordenadas && !enderecoCompleto) {
       setErro('Informe o endereço ou use sua localização atual.');
+      return;
+    }
+    if (!foto) {
+      setErro('Adicione uma foto dos materiais para enviar a solicitação.');
       return;
     }
 
@@ -358,11 +419,7 @@ export default function SolicitarColeta() {
       }
 
       // Limpa o formulário e leva para a lista de pedidos.
-      setSelecionados([]);
-      setQuantidade('');
-      setObservacao('');
-      setFoto(null);
-      setCoordenadas(null);
+      reiniciarFormulario();
       router.replace('/(cidadao)/pedidos');
     } finally {
       setEnviando(false);
@@ -440,11 +497,11 @@ export default function SolicitarColeta() {
           </View>
           <View style={{ flex: 1 }}>
             <Campo
-              rotulo="Número (opcional)"
+              rotulo="Número"
               value={numero}
               onChangeText={setNumero}
-              keyboardType="number-pad"
-              placeholder="Ex.: 120"
+              autoCapitalize="characters"
+              placeholder="120 ou S/N"
             />
           </View>
         </View>
@@ -470,7 +527,7 @@ export default function SolicitarColeta() {
           ) : coordenadas ? (
             <>
               <Text style={estilos.dica}>
-                {!numero.trim() && !pontoAjustado
+                {!numeroParaMapa && !pontoAjustado
                   ? 'Sem número: o mapa mostra a área aproximada. Toque no mapa ou arraste o ponto para deixar a localização mais precisa.'
                   : 'Toque no mapa ou arraste o ponto para ajustar a localização da coleta.'}
               </Text>
@@ -485,7 +542,7 @@ export default function SolicitarColeta() {
                   },
                 ]}
                 altura={220}
-                raioMetros={!numero.trim() && !pontoAjustado ? 180 : undefined}
+                raioMetros={!numeroParaMapa && !pontoAjustado ? 180 : undefined}
                 aoEscolherCoordenada={ajustarPontoMapa}
               />
               <Text style={estilos.coordenadas}>
@@ -552,9 +609,10 @@ export default function SolicitarColeta() {
       </Cartao>
 
       <Cartao>
-        <Text style={estilos.rotulo}>Foto dos materiais (opcional)</Text>
+        <Text style={estilos.rotulo}>Foto dos materiais</Text>
         <Text style={estilos.dica}>
-          Ex.: tire uma foto das 10 garrafas de vinho para ajudar a equipe a estimar o volume.
+          Obrigatória. Ex.: tire uma foto das 10 garrafas de vinho para ajudar a equipe a estimar o
+          volume.
         </Text>
         {foto ? (
           <View>
@@ -562,10 +620,16 @@ export default function SolicitarColeta() {
             <Botao titulo="Remover foto" variante="perigo" aoTocar={() => setFoto(null)} />
           </View>
         ) : (
-          <Pressable onPress={escolherFoto} style={estilos.botaoFoto}>
-            <Ionicons name="camera" size={28} color={Cores.primaria} />
-            <Text style={estilos.botaoFotoTexto}>Escolher foto</Text>
-          </Pressable>
+          <View style={estilos.opcoesFoto}>
+            <Pressable onPress={tirarFoto} style={[estilos.botaoFoto, { flex: 1 }]}>
+              <Ionicons name="camera" size={28} color={Cores.primaria} />
+              <Text style={estilos.botaoFotoTexto}>Tirar foto</Text>
+            </Pressable>
+            <Pressable onPress={escolherFoto} style={[estilos.botaoFoto, { flex: 1 }]}>
+              <Ionicons name="images" size={28} color={Cores.primaria} />
+              <Text style={estilos.botaoFotoTexto}>Escolher da galeria</Text>
+            </Pressable>
+          </View>
         )}
       </Cartao>
 
@@ -657,17 +721,24 @@ const estilos = StyleSheet.create({
     borderRadius: Raio.m,
     marginBottom: Espaco.m,
   },
+  opcoesFoto: {
+    flexDirection: 'row',
+    gap: Espaco.s,
+  },
   botaoFoto: {
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: Cores.borda,
     borderRadius: Raio.m,
     paddingVertical: Espaco.g,
+    paddingHorizontal: Espaco.s,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: Espaco.xs,
   },
   botaoFotoTexto: {
     color: Cores.primariaEscura,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

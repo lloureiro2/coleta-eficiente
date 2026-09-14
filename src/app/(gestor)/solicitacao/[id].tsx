@@ -84,8 +84,22 @@ export default function DetalheSolicitacao() {
     }, [carregar])
   );
 
+  // A limpeza roda ao sair da tela: o preenchimento não vaza para a próxima coleta.
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setMotivoRecusa('');
+        setKgColeta('');
+        setUnidadesColeta('');
+        setFotoColeta(null);
+        setErro(null);
+      },
+      []
+    )
+  );
+
   async function mudarStatus(novo: StatusSolicitacao, extra: Record<string, unknown> = {}) {
-    if (!solicitacao) return;
+    if (!solicitacao) return false;
     setErro(null);
     setMudandoStatus(true);
     const { error } = await supabase
@@ -95,9 +109,10 @@ export default function DetalheSolicitacao() {
     setMudandoStatus(false);
     if (error) {
       setErro(`Não foi possível atualizar o status: ${error.message}`);
-      return;
+      return false;
     }
     await carregar();
+    return true;
   }
 
   async function aprovar() {
@@ -110,18 +125,23 @@ export default function DetalheSolicitacao() {
       setErro('Informe o motivo da recusa.');
       return;
     }
-    await mudarStatus('recusada', {
+    const ok = await mudarStatus('recusada', {
       motivo_recusa: motivo,
       origem_recusa: perfil?.municipios?.tipo === 'cooperativa' ? 'cooperativa' : 'prefeitura',
     });
+    if (ok) setMotivoRecusa('');
   }
 
-  async function escolherFotoColeta() {
-    const resultado = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.6,
-      base64: true,
-    });
+  async function finalizarColeta() {
+    if (registros.length === 0) {
+      setErro('Registre a coleta antes de finalizar.');
+      return;
+    }
+    const ok = await mudarStatus('coletada');
+    if (ok) router.replace('/(gestor)/rota');
+  }
+
+  function guardarFotoColeta(resultado: ImagePicker.ImagePickerResult) {
     const arquivo = resultado.assets?.[0];
     if (!resultado.canceled && arquivo?.base64) {
       setFotoColeta({
@@ -130,6 +150,32 @@ export default function DetalheSolicitacao() {
         mime: arquivo.mimeType ?? 'image/jpeg',
       });
     }
+  }
+
+  async function tirarFotoColeta() {
+    setErro(null);
+    const permissao = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissao.granted) {
+      setErro('Permita o acesso à câmera para tirar a foto da coleta.');
+      return;
+    }
+    guardarFotoColeta(
+      await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.6,
+        base64: true,
+      })
+    );
+  }
+
+  async function escolherFotoColeta() {
+    guardarFotoColeta(
+      await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.6,
+        base64: true,
+      })
+    );
   }
 
   async function salvarRegistro() {
@@ -366,7 +412,15 @@ export default function DetalheSolicitacao() {
               <Botao titulo="Remover foto" variante="perigo" aoTocar={() => setFotoColeta(null)} />
             </View>
           ) : (
-            <Botao titulo="Escolher foto" variante="secundario" aoTocar={escolherFotoColeta} />
+            <View style={estilos.botoesFoto}>
+              <Botao titulo="Tirar foto" aoTocar={tirarFotoColeta} style={{ flex: 1 }} />
+              <Botao
+                titulo="Escolher da galeria"
+                variante="secundario"
+                aoTocar={escolherFotoColeta}
+                style={{ flex: 1 }}
+              />
+            </View>
           )}
           <Botao
             titulo="Salvar coleta"
@@ -407,6 +461,19 @@ export default function DetalheSolicitacao() {
               </View>
             ))
           )}
+
+          {podeColetar && registros.length > 0 ? (
+            <View style={{ marginTop: Espaco.m }}>
+              <Text style={[estilos.detalhe, { marginBottom: Espaco.s }]}>
+                Tudo registrado? Finalize esta coleta para voltar à rota e seguir para a próxima.
+              </Text>
+              <Botao
+                titulo="Finalizar coleta e ir para a próxima"
+                aoTocar={finalizarColeta}
+                carregando={mudandoStatus}
+              />
+            </View>
+          ) : null}
         </Cartao>
       )}
     </Tela>
@@ -468,6 +535,10 @@ const estilos = StyleSheet.create({
     fontWeight: '600',
     color: Cores.texto,
     marginBottom: Espaco.s,
+  },
+  botoesFoto: {
+    flexDirection: 'row',
+    gap: Espaco.s,
   },
   blocoRegistroSalvo: {
     paddingVertical: 8,
